@@ -26,7 +26,7 @@ def _staging_basic_auth(app):
 
 def create_app():
     from .routes import bp as main_bp
-    from .models import *  # noqa
+    from . import models  # noqa: F401
 
     app = Flask(__name__)
     app.config.update(
