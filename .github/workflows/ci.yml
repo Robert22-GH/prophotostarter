@@ -1,22 +1,37 @@
 name: CI
 
 on:
-  pull_request:
-    branches: [ main ]
   push:
+    branches: [ main ]
+  pull_request:
     branches: [ main ]
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff black
+      - name: Ruff (lint)
+        run: ruff check .
+      - name: Black (format check)
+        run: black --check .
+
   test:
     runs-on: ubuntu-latest
-
     services:
       postgres:
-        image: postgres:15
+        image: postgres:16-alpine
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: app_test
+          POSTGRES_DB: app
         ports:
           - 5432:5432
         options: >-
@@ -24,37 +39,37 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
-
     env:
-      DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/app_test
-      SECRET_KEY: ci-secret
+      # Match your app’s SQLAlchemy URL style (psycopg3)
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/app
+      FLASK_APP: wsgi:app
       FLASK_ENV: testing
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-
+          python-version: "3.11"
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest
-
-      - name: Wait for DB to be ready
+      - name: Migrate DB
         run: |
-          for i in {1..30}; do
-            pg_isready -h localhost -p 5432 -U postgres && break
-            sleep 1
-          done
-
-      - name: Run migrations
-        run: |
-          python -m flask --app wsgi:app db upgrade
-
+          python -m flask db upgrade
       - name: Run tests
-  run: PYTHONPATH=. pytest -q
+        run: |
+          pytest -q
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install pip-audit
+        run: |
+          python -m pip install --upgrade pip
+          pip install pip-audit
+      - name: Dependency audit
+        run: pip-audit -r requirements.txt
