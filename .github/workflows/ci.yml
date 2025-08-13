@@ -57,4 +57,4 @@ jobs:
           python -m flask --app wsgi:app db upgrade
 
       - name: Run tests
-        run: pytest -q
+  run: PYTHONPATH=. pytest -q
